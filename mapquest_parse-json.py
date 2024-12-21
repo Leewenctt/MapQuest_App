@@ -63,171 +63,237 @@ def update_settings():
     save_settings()
     print(Fore.WHITE + "===============================================================")
 
+def handle_api_error(main_json_data):
+    if "info" in main_json_data and "statuscode" in main_json_data["info"]:
+        status_code = main_json_data["info"]["statuscode"]
+        print(Fore.RED + f"API Error {status_code}: {main_json_data['info']['messages'][0]}")
+    else:
+        print(Fore.RED + "Error: Missing or unexpected API response.")
+
 def main_loop():
+    global settings
     while True:
-        print(Fore.CYAN + "\n- 's' or 'settings' to update settings.")
-        print(Fore.CYAN + "- 'q' or 'quit' to quit.\n")
+        try:
+            print(Fore.CYAN + "\n- 's' or 'settings' to update settings.")
+            print(Fore.CYAN + "- 'q' or 'quit' to quit.\n")
 
-        orig = input(Fore.WHITE + "Starting Location: ")
-        if orig.lower() in ["quit", "q"]:
-            print(Fore.GREEN + "Thank you for using our app.")
-            break
-        elif orig.lower() in ["settings", "s"]:
-            update_settings()
-            continue
-        elif orig.strip() == "":
-            print(Fore.RED + "Starting location cannot be empty. Please enter a valid starting location.\n")
-            continue
+            orig = input(Fore.WHITE + "Starting Location: ")
+            if orig.lower() in ["quit", "q"]:
+                print(Fore.GREEN + "Thank you for using our app.")
+                break
+            elif orig.lower() in ["settings", "s"]:
+                update_settings()
+                settings = load_settings()  # reload settings after modification
+                continue
+            elif orig.strip() == "":
+                print(Fore.RED + "Starting location cannot be empty. Please enter a valid starting location.\n")
+                continue
 
-        destinations = []
-        dest = input(Fore.WHITE + "Destination: ")
-        if dest.lower() in ["quit", "q"]:
-            print(Fore.GREEN + "Thank you for using our app.")
-            break
-        elif dest.lower() in ["settings", "s"]:
-            update_settings()
-            continue
-        elif dest.strip() == "":
-            print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
-            continue
-        else:
-            destinations.append(dest)
+            destinations = []
+            dest = input(Fore.WHITE + "Destination: ")
+            if dest.lower() in ["quit", "q"]:
+                print(Fore.GREEN + "Thank you for using our app.")
+                break
+            elif dest.lower() in ["settings", "s"]:
+                update_settings()
+                settings = load_settings()  # reload settings after modification
+                continue
+            elif dest.strip() == "":
+                print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
+                continue
+            else:
+                destinations.append(dest)
 
-        add_more = input(Fore.WHITE + "\nWould you like to add more destinations? (Y/N): ").lower()
-        if add_more == "y":
-            print(Fore.CYAN + "\n- 'd' or 'done' to finish adding destinations.\n")
-            while True:
-                next_dest = input(Fore.WHITE + "Enter another destination: ")
-                if next_dest.lower() in ["d", "done"]:
-                    print(Fore.YELLOW + "Destination added.\n")
-                    break
-                elif next_dest.strip() == "":
-                    print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
-                else:
-                    destinations.append(next_dest)
-                    print(Fore.YELLOW + "Destination added.\n")
-        elif add_more == "n":
-            pass
+            add_more = input(Fore.WHITE + "\nWould you like to add more destinations? (Y/N): ").lower()
+            if add_more == "y":
+                print(Fore.CYAN + "\n- 'd' or 'done' to finish adding destinations.\n")
+                while True:
+                    next_dest = input(Fore.WHITE + "Enter another destination: ")
+                    if next_dest.lower() in ["d", "done"]:
+                        break
+                    elif next_dest.strip() == "":
+                        print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
+                    else:
+                        destinations.append(next_dest)
+                        print(Fore.YELLOW + "Destination added.\n")
 
-        mode_selection = {
-            "car": "fastest",
-            "bike": "bicycle",
-            "foot": "pedestrian"
-        }.get(settings["vehicle_type"], "fastest")
+            # Ask for route optimization if multiple destinations
+            if len(destinations) > 1:
+                optimize_choice = input(Fore.WHITE + "\nWould you like to optimize the route order for efficiency? (Y/N): ").lower()
+                api_endpoint = "https://www.mapquestapi.com/directions/v2/optimizedroute?" if optimize_choice == 'y' else main_api
+            else:
+                api_endpoint = main_api
+                optimize_choice = 'n'
 
-        unit_conversion = 1.60934 if settings["unit_system"] == "imperial" else 1
+            alternate_choice = 'n'  # Ensure alternate_choice has a default value
+            if len(destinations) == 1:  # Only ask about alternate routes if one destination
+                alternate_choice = input(Fore.WHITE + "\nEnable alternate routes? (Y/N): ").lower()
 
-        main_query_params = [
-            ("key", key),
-            ("from", orig),
-            ("to", destinations[0]),
-            ("routeType", mode_selection),
-            ("outFormat", "json")
-        ]
+            mode_selection = {
+                "car": "fastest",
+                "bike": "bicycle",
+                "foot": "pedestrian"
+            }.get(settings["vehicle_type"], "fastest")
 
-        for dest in destinations[1:]:
-            main_query_params.append(("to", dest))
+            unit_conversion = 1.60934 if settings["unit_system"] == "imperial" else 1
 
-        main_url = main_api + urllib.parse.urlencode(main_query_params, doseq=True)
-        main_json_data = requests.get(main_url).json()
-        main_json_status = main_json_data["info"]["statuscode"]
-
-        if main_json_status == 0:
-            print("\nAPI Status: " + Fore.GREEN + str(main_json_status) + ", Success!")
-            print("URL: " + main_url)
-            print(Fore.WHITE + "\n===============================================================")
-            total_distance = 0
-            total_fuel_used = 0
-            multiple_destinations = len(destinations) > 1
-
-            for leg_index, leg in enumerate(main_json_data["route"]["legs"]):
-                if leg_index == 0:
-                    print(Fore.WHITE + f"{orig} to {destinations[0]}:")
-                else:
-                    print(Fore.WHITE + f"{destinations[leg_index-1]} to {destinations[leg_index]}:")
-
-                leg_distance = leg["distance"]
-                total_distance += leg_distance
-
-                if settings["unit_system"] == "imperial":
-                    print("  • Distance: "+ Fore.YELLOW + f"{leg_distance:.2f}mi")
-                else:
-                    print("  • Distance: "+ Fore.YELLOW + f"{leg_distance * unit_conversion:.2f}km")
-
-                print("  • Estimated Duration: " + Fore.YELLOW + f"{leg['formattedTime']}")
-
-                if settings["vehicle_type"] == "car":
-                    fuel_used = (leg_distance / (1.60934 if settings["unit_system"] == "imperial" else 1)) / settings["fuel_efficiency"]
-                    total_fuel_used += fuel_used
-                    fuel_unit = "G" if settings["unit_system"] == "imperial" else "L"
-                    print("  • Fuel Used: " + Fore.YELLOW + f"{fuel_used:.2f}{fuel_unit}")
-
-                print(Fore.WHITE + "\n  Turn-by-turn Directions:")
-                for each in leg["maneuvers"]:
-                    turn_distance = each["distance"] * (1.60934 if settings["unit_system"] == "imperial" else 1)
-                    print(Fore.YELLOW + f"  ➔  {each['narrative']} ({turn_distance:.2f} {'mi' if settings['unit_system'] == 'imperial' else 'km'})")
-
-            if multiple_destinations:
-                print(Fore.WHITE + "\nTotal Distance Covered: " + Fore.YELLOW + f"{total_distance:.2f}{'mi' if settings['unit_system'] == 'imperial' else 'km'}")
-                if settings["vehicle_type"] == "car":
-                    print(Fore.WHITE + "Total Fuel Usage: " + Fore.YELLOW + f"{total_fuel_used:.2f}{'G' if settings['unit_system'] == 'imperial' else 'L'}")
-
-            if len(destinations) == 1:
-                max_routes = 4
-                time_overage = 50
-                alt_query_params = [
+            if optimize_choice == 'y':
+                locations = [orig] + destinations
+                locations_json = {"locations": locations}
+                main_query_params = [
+                    ("key", key),
+                    ("json", json.dumps(locations_json)),  # Send the locations in the required format
+                    ("outFormat", "json")
+                ]
+            else:
+                main_query_params = [
                     ("key", key),
                     ("from", orig),
                     ("to", destinations[0]),
-                    ("maxRoutes", max_routes),
-                    ("timeOverage", time_overage),
+                    ("routeType", mode_selection),
                     ("outFormat", "json")
                 ]
+                for dest in destinations[1:]:
+                    main_query_params.append(("to", dest))
 
-                alt_url = alternate_routes_api + urllib.parse.urlencode(alt_query_params, doseq=True)
-                alt_json_data = requests.get(alt_url).json()
+            main_url = api_endpoint + urllib.parse.urlencode(main_query_params, doseq=True)
 
-                if "alternateRoutes" in alt_json_data["route"]:
-                    for route_index, route in enumerate(alt_json_data["route"]["alternateRoutes"]):
-                        print(Fore.CYAN + f"\nAlternate Route {route_index + 1}:")
-                        total_distance = 0
-                        total_fuel_used = 0
+            try:
+                response = requests.get(main_url)
+                main_json_data = response.json()
+                main_json_status = main_json_data["info"]["statuscode"]
 
-                        for leg_index, leg in enumerate(route["route"]["legs"]):
-                            if leg_index == 0:
-                                print(Fore.WHITE + f"{orig} to {destinations[0]}:")
+                if main_json_status == 0:
+                    print("\nAPI Status: " + Fore.GREEN + str(main_json_status) + ", Success!")
+                    print("URL: " + main_url)
+                    print(Fore.WHITE + "\n===============================================================")
+                    
+                    if optimize_choice == 'y':
+                        print(Fore.CYAN + "Optimized Route:")
+                    else:
+                        print(Fore.CYAN + "Standard Route:")
 
-                            leg_distance = leg["distance"]
-                            total_distance += leg_distance
+                    total_distance = 0
+                    total_fuel_used = 0
 
-                            if settings["unit_system"] == "imperial":
-                                print("  • Distance: "+ Fore.YELLOW + f"{leg_distance:.2f}mi")
+                    # Display optimized stop order if available
+                    if optimize_choice == 'y' and "locationSequence" in main_json_data["route"]:
+                        location_sequence = main_json_data["route"]["locationSequence"]
+                        print(Fore.YELLOW + "\nOptimized Stop Order:")
+                        all_locations = [orig] + destinations
+                        
+                        # Validate location sequence
+                        if all(isinstance(idx, int) and 0 <= idx < len(all_locations) for idx in location_sequence):
+                            for i, idx in enumerate(location_sequence, 2):
+                                print(f"{i-1}. {all_locations[idx]}")  # Print the rest of the locations in optimized order
+                            print()
+                        else:
+                            print(Fore.RED + "Warning: Received invalid location sequence from API")
+                            print(f"1. {orig} (Start)")
+                            for i, dest in enumerate(destinations, 2):
+                                print(f"{i}. {dest}")
+                            print()
+
+                    for leg_index, leg in enumerate(main_json_data["route"]["legs"]):
+                        if leg_index == 0:
+                            print(Fore.WHITE + f"{orig} to {destinations[0]}:")
+                        else:
+                            print(Fore.WHITE + f"{destinations[leg_index-1]} to {destinations[leg_index]}:")
+
+                        leg_distance = leg["distance"]
+                        total_distance += leg_distance
+
+                        if settings["unit_system"] == "imperial":
+                            print("  • Distance: "+ Fore.YELLOW + f"{leg_distance:.2f}mi")
+                        else:
+                            print("  • Distance: "+ Fore.YELLOW + f"{leg_distance * unit_conversion:.2f}km")
+
+                        print("  • Estimated Duration: " + Fore.YELLOW + f"{leg['formattedTime']}")
+
+                        if settings["vehicle_type"] == "car":
+                            fuel_used = (leg_distance / (1.60934 if settings["unit_system"] == "imperial" else 1)) / settings["fuel_efficiency"]
+                            total_fuel_used += fuel_used
+                            fuel_unit = "G" if settings["unit_system"] == "imperial" else "L"
+                            print("  • Fuel Used: " + Fore.YELLOW + f"{fuel_used:.2f}{fuel_unit}")
+
+                        print(Fore.WHITE + "\n  Turn-by-turn Directions:")
+                        for each in leg["maneuvers"]:
+                            turn_distance = each["distance"] * unit_conversion
+                            print(Fore.YELLOW + f"  ➔  {each['narrative']} ({turn_distance:.2f} {'mi' if settings['unit_system'] == 'imperial' else 'km'})")
+                            
+                        if len(destinations) > 1:
+                            print()
+                            
+                    if len(destinations) > 1:
+                        print(Fore.WHITE + "\nTotal Distance Covered: " + Fore.YELLOW + f"{total_distance * unit_conversion:.2f}{'mi' if settings['unit_system'] == 'imperial' else 'km'}")
+                        if settings["vehicle_type"] == "car":
+                            print(Fore.WHITE + "Total Fuel Usage: " + Fore.YELLOW + f"{total_fuel_used:.2f}{'G' if settings['unit_system'] == 'imperial' else 'L'}")
+
+
+                    # Handle alternate routes if the user opts for it
+                    if alternate_choice == 'y' and len(destinations) == 1:
+                        max_routes = 2
+                        time_overage = 50
+                        alt_query_params = [
+                            ("key", key),
+                            ("from", orig),
+                            ("to", destinations[0]),
+                            ("maxRoutes", max_routes),
+                            ("timeOverage", time_overage),
+                            ("outFormat", "json")
+                        ]
+
+                        alt_url = alternate_routes_api + urllib.parse.urlencode(alt_query_params, doseq=True)
+                        try:
+                            alt_json_data = requests.get(alt_url).json()
+
+                            if "alternateRoutes" in alt_json_data["route"]:
+                                for route_index, route in enumerate(alt_json_data["route"]["alternateRoutes"]):
+                                    print(Fore.CYAN + f"\nAlternate Route:")
+                                    total_distance = 0
+                                    total_fuel_used = 0
+
+                                    for leg_index, leg in enumerate(route["route"]["legs"]):
+                                        if leg_index == 0:
+                                            print(Fore.WHITE + f"{orig} to {destinations[0]}:")
+                                        else:
+                                            print(Fore.WHITE + f"{destinations[leg_index-1]} to {destinations[leg_index]}:")
+
+                                        leg_distance = leg["distance"]
+                                        total_distance += leg_distance
+
+                                        if settings["unit_system"] == "imperial":
+                                            print("  • Distance: "+ Fore.YELLOW + f"{leg_distance:.2f}mi")
+                                        else:
+                                            print("  • Distance: "+ Fore.YELLOW + f"{leg_distance * unit_conversion:.2f}km")
+
+                                        print("  • Estimated Duration: " + Fore.YELLOW + f"{leg['formattedTime']}")
+
+                                        if settings["vehicle_type"] == "car":
+                                            fuel_used = (leg_distance / (1.60934 if settings["unit_system"] == "imperial" else 1)) / settings["fuel_efficiency"]
+                                            total_fuel_used += fuel_used
+                                            fuel_unit = "G" if settings["unit_system"] == "imperial" else "L"
+                                            print("  • Fuel Used: " + Fore.YELLOW + f"{fuel_used:.2f}{fuel_unit}")
+
+                                    print(Fore.WHITE + "\n  Turn-by-turn Directions:")
+                                    for leg_index, leg in enumerate(route["route"]["legs"]):
+                                        for each in leg["maneuvers"]:
+                                            turn_distance = each["distance"] * unit_conversion
+                                            print(Fore.YELLOW + f"  ➔  {each['narrative']} ({turn_distance:.2f} {'mi' if settings['unit_system'] == 'imperial' else 'km'})")
                             else:
-                                print("  • Distance: "+ Fore.YELLOW + f"{leg_distance * unit_conversion:.2f}km")
+                                print(Fore.RED + "\nNo alternate routes found.")
+                        except Exception as e:
+                            print(Fore.RED + "\nError fetching alternate routes: ", e)    
+                    print(Fore.WHITE + "===============================================================")            
+                else:
+                    handle_api_error(main_json_data)
+            except requests.exceptions.RequestException as e:
+                print(Fore.RED + f"\nRequest failed: {e}")
+            except Exception as e:
+                print(Fore.RED + f"\nUnexpected error: {e}")
+        except KeyboardInterrupt:
+            print(Fore.GREEN + "\nThank you for using our app.")
+            break
 
-                            print("  • Estimated Duration: " + Fore.YELLOW + f"{leg['formattedTime']}")
-
-                            if settings["vehicle_type"] == "car":
-                                fuel_used = (leg_distance / (1.60934 if settings["unit_system"] == "imperial" else 1)) / settings["fuel_efficiency"]
-                                total_fuel_used += fuel_used
-                                fuel_unit = "G" if settings["unit_system"] == "imperial" else "L"
-                                print("  • Fuel Used: " + Fore.YELLOW + f"{fuel_used:.2f}{fuel_unit}")
-
-                            print(Fore.WHITE + "\n  Turn-by-turn Directions:")
-                            for each in leg["maneuvers"]:
-                                turn_distance = each["distance"] * (1.60934 if settings["unit_system"] == "imperial" else 1)
-                                print(Fore.YELLOW + f"  ➔  {each['narrative']} ({turn_distance:.2f} {'mi' if settings['unit_system'] == 'imperial' else 'km'})")
-                print(Fore.WHITE + "===============================================================")
-
-        elif main_json_status == 402:
-            print(Fore.RED + "Invalid input for one or more locations.")
-        elif main_json_status == 611:
-            print(Fore.RED + "Missing an entry for one or more locations.")
-        else:
-            print(Fore.RED + f"Status Code: {main_json_status}. Check the API documentation for details.")
-
-try:
-    main_loop()
-except KeyboardInterrupt:
-    print(Fore.RED + "\nProgram interrupted. Saving settings...")
-    save_settings()
+# Run the main loop
+main_loop()
