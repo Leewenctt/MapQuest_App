@@ -36,27 +36,33 @@ def update_settings():
     print(Fore.WHITE + "\n===============================================================")
     print(f"Current settings:\n  • Unit System: {settings['unit_system']}\n  • Vehicle Type: {settings['vehicle_type']}\n  • Fuel Efficiency: {settings['fuel_efficiency']} \n")
 
-    unit_choice = input(Fore.WHITE + "Choose unit system (metric/imperial): ").lower()
-    if unit_choice in ["metric", "imperial"]:
-        settings["unit_system"] = unit_choice
-        print(Fore.GREEN + "Updated successfully.\n")
-    else:
-        print(Fore.YELLOW + "No changes made.\n")
+    while True:
+        unit_choice = input(Fore.WHITE + "Choose unit system (metric/imperial): ").lower()
+        if unit_choice in ["metric", "imperial"]:
+            settings["unit_system"] = unit_choice
+            print(Fore.GREEN + "Updated successfully.\n")
+            break
+        else:
+            print(Fore.YELLOW + "Invalid input. Please enter 'metric' or 'imperial'.")
 
-    vehicle_choice = input(Fore.WHITE + "Choose vehicle type (car/bike/foot): ").lower()
-    if vehicle_choice in ["car", "bike", "foot"]:
-        settings["vehicle_type"] = vehicle_choice
-        print(Fore.GREEN + "Updated successfully.\n")
-    else:
-        print(Fore.YELLOW + "No changes made.\n")
+    while True:
+        vehicle_choice = input(Fore.WHITE + "Choose vehicle type (car/bike/foot): ").lower()
+        if vehicle_choice in ["car", "bike", "foot"]:
+            settings["vehicle_type"] = vehicle_choice
+            print(Fore.GREEN + "Updated successfully.\n")
+            break
+        else:
+            print(Fore.YELLOW + "Invalid input. Please enter 'car', 'bike', or 'foot'.\n")
 
     if settings["vehicle_type"] == "car":
-        fuel_efficiency = input(Fore.WHITE + "Enter fuel efficiency: ")
-        if fuel_efficiency.replace('.', '', 1).isdigit():
-            settings["fuel_efficiency"] = float(fuel_efficiency)
-            print(Fore.GREEN + "Updated successfully.\n")
-        else:
-            print(Fore.YELLOW + "No changes made.\n")
+        while True:
+            fuel_efficiency = input(Fore.WHITE + "Enter fuel efficiency: ")
+            if fuel_efficiency.replace('.', '', 1).isdigit():
+                settings["fuel_efficiency"] = float(fuel_efficiency)
+                print(Fore.GREEN + "Updated successfully.\n")
+                break
+            else:
+                print(Fore.YELLOW + "Invalid input. Please enter a valid number for fuel efficiency.\n")
     else:
         print(Fore.YELLOW + "Fuel efficiency is not applicable for this vehicle type.\n")
 
@@ -83,7 +89,7 @@ def main_loop():
                 break
             elif orig.lower() in ["settings", "s"]:
                 update_settings()
-                settings = load_settings()  # reload settings after modification
+                settings = load_settings()
                 continue
             elif orig.strip() == "":
                 print(Fore.RED + "Starting location cannot be empty. Please enter a valid starting location.\n")
@@ -96,7 +102,7 @@ def main_loop():
                 break
             elif dest.lower() in ["settings", "s"]:
                 update_settings()
-                settings = load_settings()  # reload settings after modification
+                settings = load_settings()
                 continue
             elif dest.strip() == "":
                 print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
@@ -104,37 +110,52 @@ def main_loop():
             else:
                 destinations.append(dest)
 
-            add_more = input(Fore.WHITE + "\nWould you like to add more destinations? (Y/N): ").lower()
-            if add_more == "y":
-                print(Fore.CYAN + "\n- 'd' or 'done' to finish adding destinations.\n")
-                while True:
-                    next_dest = input(Fore.WHITE + "Enter another destination: ")
-                    if next_dest.lower() in ["d", "done"]:
-                        break
-                    elif next_dest.strip() == "":
-                        print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
-                    else:
-                        destinations.append(next_dest)
-                        print(Fore.YELLOW + "Destination added.\n")
+            while True:
+                add_more = input(Fore.WHITE + "\nWould you like to add more destinations? (Y/N): ").lower()
+                if add_more == "y":
+                    print(Fore.CYAN + "\n- 'd' or 'done' to finish adding destinations.\n")
+                    while True:
+                        next_dest = input(Fore.WHITE + "Enter another destination: ")
+                        if next_dest.lower() in ["d", "done"]:
+                            break
+                        elif next_dest.strip() == "":
+                            print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
+                        else:
+                            destinations.append(next_dest)
+                            print(Fore.YELLOW + "Destination added.\n")
+                    break
+                elif add_more == "n":
+                    break
+                else:
+                    print(Fore.RED + "Invalid input. Please enter 'Y' or 'N'.")
 
-            # Ask for route optimization if multiple destinations
             if len(destinations) > 1:
-                optimize_choice = input(Fore.WHITE + "\nWould you like to optimize the route order for efficiency? (Y/N): ").lower()
+                while True:
+                    optimize_choice = input(Fore.WHITE + "\nWould you like to optimize the route order for efficiency? (Y/N): ").lower()
+                    if optimize_choice in ['y', 'n']:
+                        break
+                    else:
+                        print(Fore.RED + "Invalid input. Please enter 'Y' or 'N'.\n")
                 api_endpoint = "https://www.mapquestapi.com/directions/v2/optimizedroute?" if optimize_choice == 'y' else main_api
             else:
                 api_endpoint = main_api
                 optimize_choice = 'n'
 
-            alternate_choice = 'n'  # Ensure alternate_choice has a default value
-            if len(destinations) == 1:  # Only ask about alternate routes if one destination
-                alternate_choice = input(Fore.WHITE + "\nEnable alternate routes? (Y/N): ").lower()
+            alternate_choice = 'n'
+            if len(destinations) == 1:
+                while True:
+                    alternate_choice = input(Fore.WHITE + "\nEnable alternate routes? (Y/N): ").lower()
+                    if alternate_choice in ['y', 'n']:
+                        break
+                    else:
+                        print(Fore.RED + "Invalid input. Please enter 'Y' or 'N'.")
 
             mode_selection = {
                 "car": "fastest",
                 "bike": "bicycle",
                 "foot": "pedestrian"
             }.get(settings["vehicle_type"], "fastest")
-
+ 
             unit_conversion = 1.60934 if settings["unit_system"] == "imperial" else 1
 
             if optimize_choice == 'y':
@@ -142,7 +163,7 @@ def main_loop():
                 locations_json = {"locations": locations}
                 main_query_params = [
                     ("key", key),
-                    ("json", json.dumps(locations_json)),  # Send the locations in the required format
+                    ("json", json.dumps(locations_json)),
                     ("outFormat", "json")
                 ]
             else:
@@ -167,7 +188,7 @@ def main_loop():
                     print("\nAPI Status: " + Fore.GREEN + str(main_json_status) + ", Success!")
                     print("URL: " + main_url)
                     print(Fore.WHITE + "\n===============================================================")
-                    
+
                     if optimize_choice == 'y':
                         print(Fore.CYAN + "Optimized Route:")
                     else:
@@ -176,16 +197,14 @@ def main_loop():
                     total_distance = 0
                     total_fuel_used = 0
 
-                    # Display optimized stop order if available
                     if optimize_choice == 'y' and "locationSequence" in main_json_data["route"]:
                         location_sequence = main_json_data["route"]["locationSequence"]
                         print(Fore.YELLOW + "\nOptimized Stop Order:")
                         all_locations = [orig] + destinations
                         
-                        # Validate location sequence
                         if all(isinstance(idx, int) and 0 <= idx < len(all_locations) for idx in location_sequence):
                             for i, idx in enumerate(location_sequence, 2):
-                                print(f"{i-1}. {all_locations[idx]}")  # Print the rest of the locations in optimized order
+                                print(f"{i-1}. {all_locations[idx]}")
                             print()
                         else:
                             print(Fore.RED + "Warning: Received invalid location sequence from API")
@@ -223,14 +242,11 @@ def main_loop():
                             
                         if len(destinations) > 1:
                             print()
-                            
                     if len(destinations) > 1:
                         print(Fore.WHITE + "\nTotal Distance Covered: " + Fore.YELLOW + f"{total_distance * unit_conversion:.2f}{'mi' if settings['unit_system'] == 'imperial' else 'km'}")
                         if settings["vehicle_type"] == "car":
                             print(Fore.WHITE + "Total Fuel Usage: " + Fore.YELLOW + f"{total_fuel_used:.2f}{'G' if settings['unit_system'] == 'imperial' else 'L'}")
 
-
-                    # Handle alternate routes if the user opts for it
                     if alternate_choice == 'y' and len(destinations) == 1:
                         max_routes = 2
                         time_overage = 50
@@ -295,5 +311,4 @@ def main_loop():
             print(Fore.GREEN + "\nThank you for using our app.")
             break
 
-# Run the main loop
 main_loop()
