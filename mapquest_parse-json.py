@@ -37,27 +37,26 @@ def update_settings():
 
     unit_choice = input(Fore.WHITE + "Choose unit system (metric/imperial): ").lower()
     if unit_choice in ["metric", "imperial"]:
-        print(Fore.GREEN + "Updated successfully.\n")
         settings["unit_system"] = unit_choice
+        print(Fore.GREEN + "Updated successfully.\n")
     else:
         print(Fore.YELLOW + "No changes made.\n")
 
     vehicle_choice = input(Fore.WHITE + "Choose vehicle type (car/bike/foot): ").lower()
     if vehicle_choice in ["car", "bike", "foot"]:
-        print(Fore.GREEN + "Updated successfully.\n")
         settings["vehicle_type"] = vehicle_choice
+        print(Fore.GREEN + "Updated successfully.\n")
     else:
         print(Fore.YELLOW + "No changes made.\n")
 
     if settings["vehicle_type"] == "car":
         fuel_efficiency = input(Fore.WHITE + "Enter fuel efficiency: ")
         if fuel_efficiency.replace('.', '', 1).isdigit():
-            print(Fore.GREEN + "Updated successfully.\n")
             settings["fuel_efficiency"] = float(fuel_efficiency)
+            print(Fore.GREEN + "Updated successfully.\n")
         else:
             print(Fore.YELLOW + "No changes made.\n")
     else:
-        print(Fore.WHITE + "Enter fuel efficiency: ")
         print(Fore.YELLOW + "Fuel efficiency is not applicable for this vehicle type.\n")
 
     save_settings()
@@ -79,6 +78,7 @@ def main_loop():
             print(Fore.RED + "Starting location cannot be empty. Please enter a valid starting location.\n")
             continue
 
+        destinations = []
         dest = input(Fore.WHITE + "Destination: ")
         if dest.lower() in ["quit", "q"]:
             print(Fore.GREEN + "Thank you for using our app.")
@@ -89,20 +89,39 @@ def main_loop():
         elif dest.strip() == "":
             print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
             continue
+        else:
+            destinations.append(dest)
 
-        vehicle_choice = input(Fore.WHITE + f"Choose vehicle type (Car/Bike/Foot): ").lower()
-        if vehicle_choice in ["car", "bike", "foot"]:
-            settings["vehicle_type"] = vehicle_choice
-        elif vehicle_choice.strip() == "":
-            print(Fore.YELLOW + "No vehicle type selected, using default.")
-            vehicle_choice = settings["vehicle_type"]
+        # Ask if the user wants to add more destinations
+        add_more = input(Fore.WHITE + "\nWould you like to add more destinations? (Y/N): ").lower()
+        if add_more == "y":
+            print(Fore.CYAN + "\n- 'd' or 'done' to finish adding destinations.\n")
+            while True:
+                next_dest = input(Fore.WHITE + "Enter another destination: ")
+                if next_dest.lower() in ["d", "done"]:
+                    print(Fore.YELLOW + "Destination added.\n")
+                    break
+                elif next_dest.strip() == "":
+                    print(Fore.RED + "Destination cannot be empty. Please enter a valid destination.\n")
+                else:
+                    destinations.append(next_dest)
+                    print(Fore.YELLOW + "Destination added.\n")
+        elif add_more == "n":
+            pass  # Don't add any more destinations
 
-        mode = vehicle_choice.lower()
-        mode_selection = {"car": "fastest", "bike": "bicycle", "foot": "pedestrian"}.get(mode, "fastest")
+        mode_selection = {
+            "car": "fastest",
+            "bike": "bicycle",
+            "foot": "pedestrian"
+        }.get(settings["vehicle_type"], "fastest")
 
         unit_conversion = 1.60934 if settings["unit_system"] == "imperial" else 1
 
-        url = main_api + urllib.parse.urlencode({"key": key, "from": orig, "to": dest, "routeType": mode_selection})
+        query_params = [("key", key), ("from", orig)]
+        for dest in destinations:
+            query_params.append(("to", dest))
+
+        url = main_api + urllib.parse.urlencode(query_params, doseq=True)
 
         json_data = requests.get(url).json()
         json_status = json_data["info"]["statuscode"]
@@ -111,46 +130,48 @@ def main_loop():
             print("\nAPI Status: " + Fore.GREEN + str(json_status) + ", Success!")
             print("URL: " + url)
             print(Fore.WHITE + "\n===============================================================")
-            print("Directions from " + Fore.YELLOW + orig + Fore.WHITE + " to " + Fore.YELLOW + dest + Fore.WHITE + " by " + Fore.YELLOW + mode + Fore.WHITE + ":")
+            total_distance = 0
+            total_fuel_used = 0
 
-            distance = json_data["route"]["distance"]
-            if settings["unit_system"] == "imperial":
-                print(Fore.YELLOW + f"  • Distance: {distance:.2f}mi")
-                print(Fore.YELLOW + f"  • Estimated Trip Duration: {json_data['route']['formattedTime']}")
-                fuel_used = (distance / 1.60934) / settings["fuel_efficiency"]
-                print(Fore.YELLOW + f"  • Estimated Fuel Usage: {fuel_used:.2f}G")
-            else:
-                distance_km = distance * 1.60934
-                print(Fore.YELLOW + f"  • Distance: {distance_km:.2f}km")
-                print(Fore.YELLOW + f"  • Estimated Trip Duration: {json_data['route']['formattedTime']}")
-                fuel_used = (distance_km * unit_conversion) / settings["fuel_efficiency"]
-                print(Fore.YELLOW + f"  • Estimated Fuel Usage: {fuel_used:.2f}L")
-
-            print(Fore.WHITE + "\nTurn-by-turn Directions:")
-            for each in json_data["route"]["legs"][0]["maneuvers"]:
-                turn_distance = each["distance"] * (1.60934 if settings["unit_system"] == "imperial" else 1)
-                if settings["unit_system"] == "imperial":
-                    print(Fore.YELLOW + f"  ➔  {each['narrative']} ({turn_distance:.2f} mi)")
+            for leg_index, leg in enumerate(json_data["route"]["legs"]):
+                if leg_index == 0:
+                    print(Fore.WHITE + f"{orig} to {destinations[leg_index]}:")
                 else:
-                    print(Fore.YELLOW + f"  ➔  {each['narrative']} ({turn_distance:.2f} km)")
+                    print(Fore.WHITE + f"{destinations[leg_index-1]} to {destinations[leg_index]}:")
 
+                leg_distance = leg["distance"]
+                total_distance += leg_distance
+
+                if settings["unit_system"] == "imperial":
+                    print("  • Distance: "+ Fore.YELLOW + f"{leg_distance:.2f}mi")
+                else:
+                    print("  • Distance: "+ Fore.YELLOW + f"{leg_distance * unit_conversion:.2f}km")
+
+                print("  • Estimated Duration: " + Fore.YELLOW + f"{leg['formattedTime']}")
+
+                if settings["vehicle_type"] == "car":
+                    fuel_used = (leg_distance / (1.60934 if settings["unit_system"] == "imperial" else 1)) / settings["fuel_efficiency"]
+                    total_fuel_used += fuel_used
+                    fuel_unit = "G" if settings["unit_system"] == "imperial" else "L"
+                    print("  • Fuel Used: " + Fore.YELLOW + f"{fuel_used:.2f}{fuel_unit}")
+
+                print(Fore.WHITE + "\n  Turn-by-turn Directions:")
+                for each in leg["maneuvers"]:
+                    turn_distance = each["distance"] * (1.60934 if settings["unit_system"] == "imperial" else 1)
+                    print(Fore.YELLOW + f"  ➔  {each['narrative']} ({turn_distance:.2f} {'mi' if settings['unit_system'] == 'imperial' else 'km'})")
+                print()
+                
+            print(Fore.WHITE + "\nTotal Distance Covered: " + Fore.YELLOW + f"{total_distance:.2f}{'mi' if settings['unit_system'] == 'imperial' else 'km'}")
+            if settings["vehicle_type"] == "car":
+                print(Fore.WHITE + "Total Fuel Usage: " + Fore.YELLOW + f"{total_fuel_used:.2f}{'G' if settings['unit_system'] == 'imperial' else 'L'}")
             print(Fore.WHITE + "===============================================================")
 
         elif json_status == 402:
-            print(Fore.RED + "\n*************************************************************")
-            print("Status Code: " + str(json_status) + "; Invalid user inputs for one or both locations.")
-            print("*************************************************************\n")
-
+            print(Fore.RED + "Invalid input for one or more locations.")
         elif json_status == 611:
-            print(Fore.RED + "\n*************************************************************")
-            print("Status Code: " + str(json_status) + "; Missing an entry for one or both locations.")
-            print("*************************************************************\n")
-
+            print(Fore.RED + "Missing an entry for one or more locations.")
         else:
-            print(Fore.RED + "\n************************************************************************")
-            print("For Status Code: " + str(json_status) + "; Refer to:")
-            print("https://developer.mapquest.com/documentation/directions-api/status-codes")
-            print("************************************************************************\n")
+            print(Fore.RED + f"Status Code: {json_status}. Check the API documentation for details.")
 
 try:
     main_loop()
