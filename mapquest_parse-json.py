@@ -3,6 +3,7 @@ import requests
 
 main_api = "https://www.mapquestapi.com/directions/v2/route?"
 key = "AJ83WSCLuL4L2EXPUfYkpoxIfAxZlTFV"
+fuel_efficiency = 12
 
 while True:
     orig = input("Starting Location: ")
@@ -24,8 +25,12 @@ while True:
         print("=============================================")
         print("Directions from " + orig + " to " + dest)
         print("Trip Duration: " + json_data["route"]["formattedTime"])
-        print("Kilometers: " + str("{:.2f}".format(json_data["route"]["distance"] * 1.61)))
-        print("Fuel Used (Ltr): " + str("{:.2f}".format(json_data["route"]["fuelUsed"] * 3.78)))
+        distance_km = json_data["route"]["distance"] * 1.61
+        print("Kilometers: " + str("{:.2f}".format(distance_km)))
+        
+        fuel_used = distance_km / fuel_efficiency
+        print("Fuel Used (Ltr): " + str("{:.2f}".format(fuel_used)))
+        
         print("=============================================")
 
         for each in json_data["route"]["legs"][0]["maneuvers"]:
