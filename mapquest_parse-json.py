@@ -2,7 +2,7 @@ import urllib.parse
 import requests
 
 main_api = "https://www.mapquestapi.com/directions/v2/route?"
-key = "your_api_key"
+key = "AJ83WSCLuL4L2EXPUfYkpoxIfAxZlTFV"
 
 while True:
     orig = input("Starting Location: ")
