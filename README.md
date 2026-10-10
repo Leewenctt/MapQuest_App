@@ -1,14 +1,11 @@
 # MapQuest_App
-DEVASC Lab 4.9.2
+Made in compliance with DEVASC Lab 4.9.2.
+## How to Run
+Clone repository:
+git clone https://github.com/Leewenctt/MapQuest_App
 
-git clone https://github.com/Leewenctt/MapQuest_App (clone repo)
+Navigate to the project directory:
+cd MapQuest_App
 
-git pull origin main (update local repo)
-
-git checkout -b branch-name
-
-git add .
-
-git commit -m
-
-git push origin branch-name
+Run the script:
+python MapQuest_App.py
