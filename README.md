@@ -1,6 +1,6 @@
 # MapQuest App
 
-Made in compliance with DEVASC Lab 4.9.2.
+A Python-based route planning application using the MapQuest Directions API. Made in compliance with DEVASC Lab 4.9.2.
 
 ## How to Run
 
